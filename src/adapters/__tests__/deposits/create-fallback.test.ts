@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'bun:test';
-import { Interface } from 'ethers';
 
 import { createDepositsResource as createEthersDepositsResource } from '../../ethers/resources/deposits';
 import { createDepositsResource as createViemDepositsResource } from '../../viem/resources/deposits';
@@ -12,7 +11,6 @@ import {
 } from '../adapter-harness.ts';
 import { ETH_ADDRESS } from '../../../core/constants.ts';
 import type { Address, Hex } from '../../../core/types/primitives.ts';
-import { IBridgehubABI } from '../../../core/abi.ts';
 
 const TX_HASH = `0x${'ab'.repeat(32)}` as Hex;
 
@@ -53,6 +51,7 @@ describe('adapters/deposits/create fallback', () => {
     setBridgehubBaseCost(harness, quoteCtx, 2_000n);
 
     (harness.l1 as any).getTransactionCount = async () => 7;
+    (harness.signer as any).populateTransaction = async (tx: Record<string, unknown>) => tx;
 
     const sent: Array<Record<string, unknown>> = [];
     (harness.signer as any).sendTransaction = async (tx: Record<string, unknown>) => {
@@ -89,6 +88,9 @@ describe('adapters/deposits/create fallback', () => {
 
   it('viem retries writeContract with legacy fees when EIP-1559 is unsupported', async () => {
     const harness = createViemHarness();
+    (harness.client as any).account = { address: ADAPTER_TEST_ADDRESSES.signer };
+    (harness.l1Wallet as any).account = { address: ADAPTER_TEST_ADDRESSES.signer };
+
     const quoteCtx = makeDepositContext(harness, { l2GasLimit: 600_000n });
     setBridgehubBaseCost(harness, quoteCtx, 2_000n);
 
@@ -133,6 +135,9 @@ describe('adapters/deposits/create fallback', () => {
 
   it('viem does not retry when the initial send error is unrelated', async () => {
     const harness = createViemHarness();
+    (harness.client as any).account = { address: ADAPTER_TEST_ADDRESSES.signer };
+    (harness.l1Wallet as any).account = { address: ADAPTER_TEST_ADDRESSES.signer };
+
     const quoteCtx = makeDepositContext(harness, { l2GasLimit: 600_000n });
     setBridgehubBaseCost(harness, quoteCtx, 2_000n);
 
