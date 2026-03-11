@@ -34,6 +34,10 @@ import { createTokensResource } from '../tokens';
 import type { TokensResource } from '../../../../core/types/flows/token';
 import { createContractsResource } from '../contracts';
 import type { ContractsResource } from '../contracts';
+import {
+  isEip1559NotSupportedError,
+  toLegacyFeeRequest,
+} from '../../../../core/utils/legacy-fee-fallback';
 
 const { wrap, toResult } = createErrorHandlers('deposits');
 
@@ -309,7 +313,16 @@ export function createDepositsResource(
 
           let hash: Hex | undefined;
           try {
-            hash = await client.l1Wallet.writeContract(req);
+            try {
+              hash = await client.l1Wallet.writeContract(req);
+            } catch (error) {
+              const legacyReq = toLegacyFeeRequest(req as Record<string, unknown>);
+              if (!isEip1559NotSupportedError(error) || !legacyReq) {
+                throw error;
+              }
+
+              hash = await client.l1Wallet.writeContract(legacyReq as WriteContractParameters);
+            }
             stepHashes[step.key] = hash;
 
             const rcpt = await client.l1.waitForTransactionReceipt({ hash });

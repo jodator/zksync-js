@@ -32,6 +32,10 @@ import type { ContractsResource } from '../contracts';
 import { isZKsyncError, isReceiptNotFound, OP_DEPOSITS } from '../../../../core/types/errors';
 import { createError } from '../../../../core/errors/factory.ts';
 import { toZKsyncError, createErrorHandlers } from '../../errors/error-ops.ts';
+import {
+  isEip1559NotSupportedError,
+  toLegacyFeeRequest,
+} from '../../../../core/utils/legacy-fee-fallback';
 
 const { wrap, toResult } = createErrorHandlers('deposits');
 
@@ -249,7 +253,18 @@ export function createDepositsResource(
 
           let hash: Hex | undefined;
           try {
-            const sent = await managed.sendTransaction(step.tx);
+            let sent;
+            try {
+              sent = await managed.sendTransaction(step.tx);
+            } catch (error) {
+              const legacyTx = toLegacyFeeRequest(step.tx as Record<string, unknown>);
+              if (!isEip1559NotSupportedError(error) || !legacyTx) {
+                throw error;
+              }
+
+              sent = await managed.sendTransaction(legacyTx as TransactionRequest);
+            }
+
             hash = sent.hash as Hex;
             stepHashes[step.key] = hash;
 
